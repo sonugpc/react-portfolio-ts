@@ -1,5 +1,3 @@
-import React from "react";
-
 interface IIcons {
   icon: string;
   title: string;

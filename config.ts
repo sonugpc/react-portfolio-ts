@@ -127,8 +127,11 @@ export const AppProjects: IProjects[] = [
     ],
     description:
       "CashBig.in is a comprehensive cashback platform modeled similar to Cashkaro.com, providing users with cashback and discounts from a vast network of online retailers. The app is designed to help users save money on their online purchases while also offering opportunities to earn through cashback.",
-    thumb: "/assets/img/projects/bigtricks-screenshot.png",
-    supporting_images: ["/assets/img/projects/cashbig.png"],
+    thumb: "/assets/img/projects/cashbig/cashbig.png",
+    supporting_images: [
+      "/assets/img/projects/cashbig/cashbig.png",
+      "/assets/img/projects/cashbig/cashbig2.png",
+    ],
     details:
       "Cashbig.in is a full-flagged cashback system that provides cashback to users on their shopping. With cashbig I was able to distribute more than 10L cashback in a span of 1.5 years. ",
   },
@@ -153,7 +156,25 @@ export const AppProjects: IProjects[] = [
 
     description:
       "Bigtricks Affiliate Links Generator Was a Part of a Project that helped 100s of Affiliaters to speed up the affiliate link generation process. The app is designed to help Youtube Channel Owners/ Telegram Channels and Instant Deals Platforms generate affiliate links. It was the one of it's kind project during 2018-2019 and only",
-    thumb: "/assets/img/projects/bigtricks-screenshot.png",
+    thumb: "/assets/img/projects/btfx/1.jpg",
+    details:
+      "BT Affex ( Name could have been better ) is a Node JS based project, built for the end to end affiliate solution for faster deep link generation and auto social post. For affiliaters a common problem was when budget is exhausted or campaign gets paused. the links would become dead instantly. BT Affex handled these issues by maintaining a db with all the providers and switch links when it gets paused or over and many more other features.  ",
+    supporting_images: [
+      "/assets/img/projects/btfx/1.jpg",
+      "/assets/img/projects/btfx/2.jpg",
+    ],
+    key_features: [
+      "Complete end-to-end deeplink Solution For Affiliates",
+      "Generate affiliate links by integrating multiple networks",
+      "Generate up to 100 links in 1 go within 1.2 seconds",
+      "Generate Instant Images and product descriptions for multiple affiliate stores",
+      "Post on multiple channels in one click",
+      "Clickless auto forward from various channels to multiple social channels",
+    ],
+    achievements: [
+      "The project helped a  to generate a significant amount of revenue  by reducing the time spent on link creation. ",
+      "Usually these shopping deals was valid for vey short time so getting the links is very time consuming. BT Affex handled these issues by maintaining a db with all the providers and switch links when it gets paused or over and many more other features.  ",
+    ],
   },
 ];
 

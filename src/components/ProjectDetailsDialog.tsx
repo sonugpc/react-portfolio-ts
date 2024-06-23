@@ -1,21 +1,18 @@
-import { Gallery } from "react-grid-gallery";
 import { IProjects } from "../../config";
 import { useEffect, useState } from "react";
-import Lightbox from "yet-another-react-lightbox";
 import { ArrowTopRightOnSquareIcon } from "@heroicons/react/16/solid";
 
 export interface IDialogData {
   isOpen: boolean;
   onClose: () => void;
-  data: IProjects;
+  data: IProjects | null | undefined;
 }
 
-function ProjectDetailsDialog(props: IDialogData | null | undefined) {
+function ProjectDetailsDialog(props: IDialogData) {
   console.log(props);
   const [images, setImages] = useState<
     { src?: string; width?: number; height?: number }[]
   >([]);
-  const [index, setIndex] = useState(0);
   useEffect(() => {
     setImages([]);
     if (props?.isOpen && props.data?.supporting_images) {
@@ -28,7 +25,6 @@ function ProjectDetailsDialog(props: IDialogData | null | undefined) {
       });
     }
   }, [props]);
-  const handleClick = (index: number) => setIndex(index);
 
   if (!props?.isOpen || !props.data) return null;
 
