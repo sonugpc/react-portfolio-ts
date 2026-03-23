@@ -1,0 +1,301 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import SiteHeader from '../../components/SiteHeader.astro';
+import { getCollection, render } from 'astro:content';
+
+export async function getStaticPaths() {
+	const blogPosts = await getCollection('blog');
+	const toSlug = (entryId: string) => entryId.replace(/\.mdx$/, '');
+
+	return blogPosts.map((post) => ({
+		params: { slug: toSlug(post.id) },
+		props: { post }
+	}));
+}
+
+const { post } = Astro.props;
+const { Content } = await render(post);
+const pageUrl = Astro.site ? new URL(`/blog/${Astro.params.slug}`, Astro.site).href : '';
+---
+
+<Layout
+	title={`${post.data.title} | Sonu Gupta`}
+	description={post.data.excerpt}
+	ogType="article"
+	ogImage={post.data.featuredImage}
+	article={{
+		author: post.data.author,
+		publishedTime: post.data.publishedAt,
+		tags: post.data.tags
+	}}
+>
+	<div class="article-page">
+		<SiteHeader activeSection="blog" mode="links" />
+
+		<nav class="breadcrumb" aria-label="Breadcrumb">
+			<a href="/">Home</a>
+			<span>/</span>
+			<a href="/?section=blog">Blog</a>
+			<span>/</span>
+			<p>{post.data.title}</p>
+		</nav>
+
+		<article class="article-shell">
+			<img class="featured" src={post.data.featuredImage} alt={post.data.title} loading="eager" />
+
+			<header class="article-header">
+				<h1>{post.data.title}</h1>
+				<p class="excerpt">{post.data.excerpt}</p>
+
+				<div class="meta-grid">
+					<p><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm0 2c-4.42 0-8 2-8 4.5V21h16v-2.5c0-2.5-3.58-4.5-8-4.5Z"></path></svg>{post.data.author}</p>
+					<p><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 2a1 1 0 0 1 1 1v1h8V3a1 1 0 1 1 2 0v1h1a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h1V3a1 1 0 0 1 1-1Zm12 8H5v9h14Zm-3 3v2H8v-2Z"></path></svg>{post.data.publishedAt}</p>
+					<p><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16a1 1 0 0 1 1 1v2H3V6a1 1 0 0 1 1-1Zm-1 5h18v8a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1Zm4 2v2h6v-2Z"></path></svg>{post.data.topic}</p>
+				</div>
+			</header>
+
+			<div class="content">
+				<Content />
+			</div>
+
+			<section class="share-section card">
+				<p class="share-label">Share this article</p>
+				<div class="share-buttons">
+					<a
+						href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(post.data.title)}&url=${encodeURIComponent(pageUrl)}`}
+						target="_blank"
+						rel="noreferrer"
+						class="share-btn share-x"
+					>
+						<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.746l7.73-8.835L1.254 2.25H8.08l4.254 5.622L18.244 2.25Zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77Z"/></svg>
+						X / Twitter
+					</a>
+					<a
+						href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(pageUrl)}`}
+						target="_blank"
+						rel="noreferrer"
+						class="share-btn share-linkedin"
+					>
+						<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.98 3.5C4.98 4.88 3.86 6 2.5 6A2.5 2.5 0 0 1 0 3.5 2.5 2.5 0 0 1 2.5 1 2.5 2.5 0 0 1 4.98 3.5ZM.22 8.24h4.56V24H.22V8.24Zm7.15 0h4.37v2.15h.06c.61-1.16 2.1-2.38 4.32-2.38 4.62 0 5.47 3.09 5.47 7.1V24h-4.56v-7.89c0-1.88-.03-4.3-2.57-4.3-2.58 0-2.98 2.03-2.98 4.16V24H7.37V8.24Z"/></svg>
+						LinkedIn
+					</a>
+					<button class="share-btn share-copy" type="button" data-copy-url aria-label="Copy link">
+						<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244"/></svg>
+						<span data-copy-label>Copy Link</span>
+					</button>
+				</div>
+			</section>
+		</article>
+	</div>
+</Layout>
+
+<script>
+	const copyBtn = document.querySelector('[data-copy-url]');
+	const copyLabel = document.querySelector('[data-copy-label]');
+	if (copyBtn && copyLabel) {
+		copyBtn.addEventListener('click', async () => {
+			try {
+				await navigator.clipboard.writeText(window.location.href);
+				copyLabel.textContent = 'Copied!';
+				window.setTimeout(() => { copyLabel.textContent = 'Copy Link'; }, 2000);
+			} catch {
+				copyLabel.textContent = 'Copy failed';
+			}
+		});
+	}
+</script>
+
+<style>
+	.article-page {
+		--surface-1: #ffffff;
+		--surface-2: #f3f5f8;
+		--border-1: #dde2eb;
+		--text-1: #0f172a;
+		--text-2: #334155;
+		width: min(100%, 1240px);
+		margin: 0 auto;
+	}
+
+	:global(body.dark) .article-page {
+		--surface-1: #121a30;
+		--surface-2: #17223d;
+		--border-1: #2b3857;
+		--text-1: #e5e7eb;
+		--text-2: #c3cede;
+	}
+
+
+	.breadcrumb {
+		display: flex;
+		align-items: center;
+		gap: 0.45rem;
+		margin: 1rem 0;
+		font-size: 0.95rem;
+	}
+
+	.breadcrumb a,
+	.breadcrumb p,
+	.breadcrumb span {
+		margin: 0;
+		text-decoration: none;
+		color: var(--text-2);
+	}
+
+	.breadcrumb p {
+		color: var(--text-1);
+		font-weight: 600;
+	}
+
+	.article-shell {
+		max-width: 980px;
+		margin: 0 auto;
+		padding-bottom: 3rem;
+	}
+
+	.featured {
+		width: 100%;
+		height: clamp(250px, 46vw, 420px);
+		object-fit: cover;
+		border-radius: 16px;
+		border: 1px solid var(--border-1);
+	}
+
+	.article-header {
+		margin-top: 1rem;
+		padding: 1.5rem;
+		border-radius: 14px;
+		background: var(--surface-1);
+		border: 1px solid var(--border-1);
+	}
+
+	h1 {
+		margin: 0;
+		font-size: clamp(2rem, 5vw, 3.2rem);
+		letter-spacing: -0.02em;
+		color: var(--text-1);
+	}
+
+	.excerpt {
+		margin: 0.7rem 0 0;
+		font-size: 1.05rem;
+		line-height: 1.7;
+		color: var(--text-2);
+	}
+
+	.meta-grid {
+		margin-top: 1rem;
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 0.5rem;
+	}
+
+	.meta-grid p {
+		display: flex;
+		align-items: center;
+		gap: 0.38rem;
+		padding: 0.6rem 0.75rem;
+		margin: 0;
+		border-radius: 10px;
+		background: var(--surface-2);
+		font-size: 0.9rem;
+		color: var(--text-2);
+	}
+
+	.meta-grid svg {
+		width: 0.9rem;
+		height: 0.9rem;
+		fill: currentColor;
+	}
+
+	.content,
+	.card {
+		margin-top: 1rem;
+		padding: 1.4rem;
+		border-radius: 14px;
+		background: var(--surface-1);
+		border: 1px solid var(--border-1);
+	}
+
+	.content :global(p) {
+		margin: 0 0 1rem;
+		line-height: 1.8;
+		color: var(--text-2);
+	}
+
+	.content :global(p:last-child) {
+		margin-bottom: 0;
+	}
+
+	.content :global(ul),
+	.content :global(ol) {
+		margin: 0 0 1rem;
+		padding-left: 1.2rem;
+		color: var(--text-2);
+		line-height: 1.8;
+	}
+
+	.card h2 {
+		margin: 0 0 0.7rem;
+		color: var(--text-1);
+	}
+
+	.share-section {
+		display: flex;
+		align-items: center;
+		gap: 1rem;
+		flex-wrap: wrap;
+	}
+
+	.share-label {
+		margin: 0;
+		font-weight: 600;
+		font-size: 0.95rem;
+		color: var(--text-1);
+		white-space: nowrap;
+	}
+
+	.share-buttons {
+		display: flex;
+		gap: 0.6rem;
+		flex-wrap: wrap;
+	}
+
+	.share-btn {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+		padding: 0.5rem 1rem;
+		border-radius: 999px;
+		font: inherit;
+		font-size: 0.88rem;
+		font-weight: 500;
+		text-decoration: none;
+		cursor: pointer;
+		border: 1px solid var(--border-1);
+		background: var(--surface-2);
+		color: var(--text-1);
+		transition: transform 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
+	}
+
+	.share-btn svg {
+		width: 0.9rem;
+		height: 0.9rem;
+		fill: currentColor;
+		flex-shrink: 0;
+	}
+
+	.share-btn:hover {
+		transform: translateY(-1px);
+		box-shadow: 0 4px 12px rgba(15, 23, 42, 0.1);
+	}
+
+	.share-x:hover { background: #000; color: #fff; border-color: #000; }
+	.share-linkedin:hover { background: #0a66c2; color: #fff; border-color: #0a66c2; }
+	.share-copy:hover { background: var(--primary, #2563eb); color: #fff; border-color: var(--primary, #2563eb); }
+
+	@media (max-width: 920px) {
+		.meta-grid {
+			grid-template-columns: 1fr;
+		}
+	}
+</style>

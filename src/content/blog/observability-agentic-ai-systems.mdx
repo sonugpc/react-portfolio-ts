@@ -1,0 +1,298 @@
+---
+title: "Observability in the Age of Agentic AI: What Changes When Your System Thinks for Itself"
+excerpt: Traditional APM tells you your server is healthy. But when an AI agent missteps through a four-step reasoning chain at 2 AM, you need a completely different kind of visibility.
+author: Sonu Gupta
+featuredImage: https://images.unsplash.com/photo-1639762681485-074b7f938ba0?auto=format&fit=crop&w=1600&q=80
+publishedAt: March 2026
+topic: AI Systems Engineering
+readTime: 14 min read
+tags:
+  - AI
+  - Observability
+  - Agentic AI
+  - Systems Design
+  - OpenTelemetry
+order: 0
+---
+
+I remember the first time one of our AI agents went off the rails in production.
+
+We had built a deal-validation agent for our cashback platform — its job was to verify merchant offers, classify them by category, check for duplicate submissions, and score them for quality before publishing. A pretty narrow, well-scoped task. We had tested it thoroughly. Unit tests, integration tests, and a few hundred prompt evaluations across edge cases.
+
+It ran fine for three weeks.
+
+Then on a Thursday morning, it started publishing deals with inverted cashback percentages. A 5% cashback deal was getting published as 50%. Our Datadog dashboard was green. P99 latency: fine. Error rate: zero. CPU and memory: boring. By every conventional measure, the system was perfectly healthy. But the agent was quietly generating incorrect outputs that looked structurally valid.
+
+That incident changed how I think about observability — and it's the reason this is a topic I keep coming back to as AI systems become more central to production engineering.
+
+---
+
+## Why Traditional Observability Falls Short for Agents
+
+Standard application performance monitoring was designed around deterministic systems. A request comes in, code executes, a response goes out. Traces capture the path. Metrics track rates and durations. Logs record what happened. It's a model that works beautifully for microservices, APIs, and databases.
+
+Agentic AI systems break this model in several ways.
+
+**Non-determinism at the core.** A language model generating a function call or making a classification decision is fundamentally probabilistic. Two identical inputs can produce different outputs. A trace that shows a successful execution doesn't tell you whether the _reasoning_ was sound — only that the system didn't crash.
+
+**Multi-step reasoning chains.** Modern agents don't just make a single prediction. They plan, decompose tasks, call tools, observe results, revise their approach, and continue. GPT-4o reasoning through a validation task might execute six to twelve internal steps. Each one is an opportunity for a subtle error to propagate. By the time you see a wrong output, the mistake was probably made three steps earlier.
+
+**Tool use amplifies blast radius.** An agent that can write to a database, call external APIs, or trigger downstream workflows is dangerous in a way that a read-only prediction model isn't. When the reasoning goes wrong and the tools are real, the consequences are real too.
+
+**Soft failures are the dominant failure mode.** Agentic systems rarely crash loudly. They fail silently by producing plausible-looking wrong outputs. Your monitoring system won't page you. There's no exception to catch. The only signal is a downstream human noticing something feels off — which can be hours or days later.
+
+---
+
+## What You Actually Need to Observe
+
+I've spent most of the last year building and production-hardening AI pipelines, and the observability requirements fall into four distinct layers.
+
+### 1. Execution Tracing
+
+Every agent execution should emit a structured trace, not just a single request span. You want to capture:
+
+- The initial input prompt and context (sanitized if it contains PII)
+- Each tool call made, with its arguments and return value
+- The model's intermediate reasoning steps if using chain-of-thought approaches
+- Token usage at each step
+- Wall-clock latency per step
+- The final output plus a structured representation of the decision made
+
+This is richer than a standard HTTP trace. You're not just tracing a request — you're tracing a reasoning process.
+
+For a Node.js stack, we've standardized on OpenTelemetry with custom spans for agent steps:
+
+```typescript
+import { trace, context, SpanStatusCode } from "@opentelemetry/api";
+
+const tracer = trace.getTracer("deal-validation-agent");
+
+async function validateDeal(deal: RawDeal): Promise<ValidationResult> {
+  return tracer.startActiveSpan("agent.validate_deal", async (rootSpan) => {
+    rootSpan.setAttributes({
+      "agent.input.deal_id": deal.id,
+      "agent.input.merchant": deal.merchant,
+      "agent.model": "gpt-4o",
+    });
+
+    try {
+      const result = await runAgentLoop(deal, rootSpan);
+
+      rootSpan.setAttributes({
+        "agent.output.decision": result.decision,
+        "agent.output.confidence": result.confidence,
+        "agent.steps_taken": result.stepCount,
+        "agent.total_tokens": result.totalTokens,
+      });
+
+      rootSpan.setStatus({ code: SpanStatusCode.OK });
+      return result;
+    } catch (err) {
+      rootSpan.setStatus({ code: SpanStatusCode.ERROR, message: String(err) });
+      throw err;
+    } finally {
+      rootSpan.end();
+    }
+  });
+}
+```
+
+Each tool call within the agent loop gets its own child span:
+
+```typescript
+async function callTool(
+  toolName: string,
+  args: Record<string, unknown>,
+  parentCtx: context.Context,
+): Promise<unknown> {
+  return tracer.startActiveSpan(
+    `agent.tool.${toolName}`,
+    { attributes: { "tool.args": JSON.stringify(args) } },
+    parentCtx,
+    async (span) => {
+      const result = await tools[toolName](args);
+      span.setAttribute("tool.result_bytes", JSON.stringify(result).length);
+      span.end();
+      return result;
+    },
+  );
+}
+```
+
+This gives you a full waterfall view of every agent execution — which tools fired, in what order, for how long, and what they returned. When something goes wrong, you can pinpoint the exact step in Grafana Tempo or Jaeger rather than staring at output logs trying to reconstruct the decision path mentally.
+
+### 2. Output Evaluation Metrics
+
+Execution traces show you _what happened_. Evaluation metrics tell you _how well it went_.
+
+This is the layer most teams skip, and it's the most important one for agentic systems.
+
+The core idea is that every agent output — whether it's a classification, a generated report, a drafted email, or a decision — needs to be scored, and that score needs to be emitted as a metric you can chart over time.
+
+For our deal-validation agent, we track:
+
+- **Precision of category classification** — we run a lightweight secondary classifier on the final output and compare labels
+- **Cashback value deviation** — is the published value within tolerable range of the raw merchant data?
+- **Duplicate detection rate** — how often does the agent surface genuine duplicates versus false positives?
+- **Rollback rate** — how often does a human reviewer override the agent's decision?
+
+That last one is the most honest signal. If the override rate starts creeping up, something has changed — the model, the prompt, the input distribution, or the tool behavior. You want to know that before a stakeholder notices.
+
+We push these as custom Prometheus gauges so they flow into our standard Grafana dashboards alongside traditional infrastructure metrics. An unhealthy agent execution quality score now triggers the same Slack alerts as a spike in API error rate.
+
+### 3. Prompt and Model Version Tracking
+
+Language models are living infrastructure. OpenAI ships updates to GPT-4o regularly, with or without a version change you explicitly requested. The model you tested against in January is not guaranteed to behave identically in March.
+
+Every agent execution needs to log:
+
+- Model name and version string
+- System prompt hash (so you know if a prompt silently got clobbered in a deploy)
+- Temperature and other generation parameters
+- Retrieval context hash if your agent uses RAG
+
+We learned the hard way to treat prompt changes like code changes — PR required, changelog entry, rollback plan ready. We maintain a `prompts/` directory versioned in Git, and the prompt hash emitted in traces is derived from the file content, not the human-assigned version number.
+
+When a regression appears in your evaluation metrics, the first thing you want to ask is: "Did the prompt change, or did the model change?" Without this logging, you're guessing.
+
+### 4. Intent and Fallback Observability
+
+This one is more conceptual but practically very important: you want to observe _what the agent was trying to do_, not just what it did.
+
+Agentic systems make plans. An agent might decide "I need to call the duplicate-check tool before I can classify this deal." If the duplicate-check tool fails or returns ambiguous data, the agent should fall back gracefully. But what does "gracefully" mean? And how do you know it happened?
+
+We instrument every branching point in the agent loop:
+
+```typescript
+type AgentIntent =
+  | "verify_merchant"
+  | "classify_category"
+  | "check_duplicates"
+  | "score_quality"
+  | "fallback_to_human_review";
+
+function recordIntent(intent: AgentIntent, span: Span, reason?: string) {
+  span.addEvent("agent.intent", {
+    intent,
+    reason: reason ?? "",
+    timestamp: Date.now(),
+  });
+}
+```
+
+When the agent decides to escalate to human review instead of making an autonomous decision, that shows up as an `agent.intent` event with `intent=fallback_to_human_review`. We can now chart fallback rate over time as a first-class signal.
+
+A spike in fallback rate is interesting data. It might mean input quality degraded. It might mean a tool is returning unexpected data. It might mean the model is getting more conservative in some category. Any of those is worth investigating — but without the intent trace you'd have no idea the rate was changing.
+
+---
+
+## Architecture: Putting It Together
+
+Here's roughly how we've structured the observability stack for our agentic workloads on AWS:
+
+```
+Agent Execution (Node.js)
+    │
+    ├── OpenTelemetry SDK
+    │       ├── Traces → AWS X-Ray / Grafana Tempo
+    │       ├── Metrics → Prometheus → Grafana
+    │       └── Logs → CloudWatch Logs Insights
+    │
+    ├── Evaluation Pipeline (async)
+    │       ├── Output scorer runs post-execution
+    │       ├── Pushes eval metrics to Prometheus
+    │       └── Stores full evaluation record in DynamoDB
+    │
+    └── Prompt Version Tracker
+            ├── Git-managed prompt files
+            ├── Hash injected at build time
+            └── Logged on every execution span
+```
+
+The evaluation pipeline running asynchronously is key. You don't want to add evaluation latency to the hot path. The agent executes, emits its trace, and the evaluation job picks up the output from a queue and scores it within a few seconds. This keeps the agent fast while giving you the evaluation metrics you need.
+
+---
+
+## Alerts That Actually Matter
+
+Here's what we alert on for our agentic systems, and why:
+
+**Evaluation score degradation (p50 dropping more than 8% week-over-week)** — This is the canary. Individual bad runs happen; a trend means something systemic changed. We alert on rolling 7-day average rather than per-execution to avoid noise.
+
+**Tool call failure rate > 2% in a 5-minute window** — If an agent's tools start failing, the agent will either produce wrong outputs or fall back to human review. Either way, it's a signal that something in the tool layer needs attention.
+
+**Token usage spike > 2x the rolling average** — When an agent suddenly starts using dramatically more tokens, it's often stuck in a reasoning loop it can't resolve, or it's receiving an unusually complex input. This is worth investigating promptly because token costs compound quickly and infinite-loop risks are real.
+
+**Fallback rate > 15% in any 30-minute window** — Our agents are designed to be autonomous. A sustained high fallback rate means they're not able to do their job, which creates a backlog in the human review queue and delays deal publication.
+
+**Prompt hash mismatch** — We track the expected prompt hash for each agent version and alert if a running instance emits a different hash. This catches accidental prompt clobbering during deploys.
+
+None of these are rocket science. They're the same patterns you'd apply to any system — track the thing that breaks, set a threshold, page someone. The hard part was identifying _what_ to track, which took several nasty production incidents to figure out.
+
+---
+
+## Lessons From Real Production Incidents
+
+The inverted cashback percentage bug I mentioned at the start? The root cause was mundane: a tool that fetched merchant data had changed its response schema slightly — a percentage value that used to be `0.05` (5%) was now returned as `5` (still meaning 5%, but the agent's extraction logic naively multiplied it by 10). The agent produced structurally valid output, the extraction math was wrong, and the cascading result was published deals with 10x the correct cashback rate.
+
+With the observability stack I described above, we would have caught this within minutes:
+
+1. The tool call response for `fetch_merchant_data` would have shown a value discontinuity in the trace
+2. Our evaluation metric for cashback value deviation would have spiked immediately on the first bad output
+3. An alert would have fired within one evaluation cycle (30 seconds post-execution)
+
+Instead, we found out when a user posted in our community forum three hours later wondering why their 50% cashback deal wasn't being honored at checkout.
+
+Three hours versus thirty seconds is the difference observability makes.
+
+Another incident: our category classification agent started degrading in accuracy for deals in the "health and beauty" category specifically — all other categories remained stable. The culprit was a system prompt update that inadvertently removed a few key examples from the few-shot section for that category. Because we track per-category evaluation precision separately (not just overall accuracy), the per-category chart showed a clear cliff on the day of the deploy. We rolled back the prompt in under ten minutes.
+
+Without category-level granularity in our evaluation metrics, we would have looked at the overall accuracy number (which barely moved, since H&B is a minority category), concluded everything was fine, and let the degradation run for weeks.
+
+---
+
+## Tooling in 2026: What I Actually Use
+
+The tooling ecosystem for AI observability has matured a lot in the last eighteen months. Here's my honest take on what's useful:
+
+**LangSmith (LangChain)** — Excellent if you're using LangChain or LangGraph. The prompt versioning, trace UI, and evaluation harness are genuinely good. I've used it for experimentation and offline evaluation. For production, we prefer vendor-neutral telemetry rather than being locked into the LangChain ecosystem.
+
+**Arize Phoenix** — Open-source, works with any framework via OpenTelemetry, has good LLM-specific span semantics (it uses the OpenInference spec). This is what I'd recommend for teams that want a dedicated LLM observability UI without vendor lock-in.
+
+**OpenTelemetry** — The default choice for instrumentation. The LLM span semantics are still being standardized (semantic conventions for GenAI attributes were merged into OTel in late 2024), but the foundations are solid. Emit standard OTel traces and you can route them wherever you want.
+
+**Grafana + Prometheus** — We already had this stack for our non-AI workloads, so putting agent evaluation metrics into Prometheus was the path of least resistance. The dashboards aren't LLM-specific out of the box, but for custom evaluation metrics they work perfectly.
+
+**CloudWatch Logs Insights** — For the full prompt+response logs with PII masking, we use CloudWatch with a structured JSON schema. Athena queries over S3-exported logs have been useful for deep-dive debugging when an alert fires and we need to understand what inputs caused the problem.
+
+---
+
+## What I'd Do If I Were Starting Today
+
+If you're about to put an AI agent into production and haven't thought about observability yet, here's the shortest path to a sensible baseline:
+
+**Day one: log everything with structure.** Before any custom tooling, just make sure every agent execution emits a structured log entry with input, output, model, prompt hash, token counts, and execution time. This is your archaeological record when things go wrong. JSON, not free text.
+
+**Week one: add an async evaluation step.** Pick the single most important output quality signal for your agent's task and automate its measurement. Run the evaluator async so it doesn't add latency. Push the result as a metric you can chart.
+
+**Week two: build your alert baseline.** Set steady-state thresholds on your evaluation metrics and token usage. You'll need a week of production data to know what "normal" looks like before you can alert meaningfully on deviations.
+
+**Month two: invest in per-segment evaluation.** A single accuracy number hides a lot. Break down quality by input category, time of day, model version, or whatever dimensions matter for your use case. This is where you catch the insidious failures that overall metrics miss.
+
+---
+
+## The Broader Point
+
+Agentic AI is not a category of software you can treat as a black box with an SLA. It's a new class of system that requires a new class of visibility. The traditional "is the service up?" metric is necessary but nowhere near sufficient.
+
+The question to answer isn't "is the agent running?" It's "is the agent thinking correctly?"
+
+That's a harder question to operationalize, but it's the right one. And the teams that get serious about answering it — building evaluation pipelines, tracing reasoning chains, alerting on output quality, not just uptime — are the ones that will be able to trust their AI systems with increasingly consequential work.
+
+I've made every mistake described in this article at least once. The good news: the solutions are engineering-tractable. You don't need exotic tooling. You need structured logging, a measurement pipeline, and disciplined alerting. The same patterns that made your microservices observable apply here, you just have to extend them into the reasoning layer.
+
+That's where the interesting work is right now.
+
+---
+
+_If you've run into observability challenges with production AI systems and want to compare notes, I'm always happy to talk. You can find me on LinkedIn or reach out at sonugpc@gmail.com._

@@ -1,0 +1,209 @@
+---
+interface Props {
+	activeSection: 'about' | 'projects' | 'blog' | 'contact';
+	mode?: 'buttons' | 'links';
+}
+
+const { activeSection, mode = 'links' } = Astro.props;
+
+const navItems = [
+	{
+		id: 'about',
+		label: 'About',
+		href: '/?section=about',
+		icon: 'M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm0 2c-4.42 0-8 2-8 4.5V21h16v-2.5c0-2.5-3.58-4.5-8-4.5Z'
+	},
+	{
+		id: 'projects',
+		label: 'Projects',
+		href: '/?section=projects',
+		icon: 'M4 4h7v7H4Zm9 0h7v7h-7ZM4 13h7v7H4Zm9 3h7v4h-7Zm0-3h7v2h-7Z'
+	},
+	{
+		id: 'blog',
+		label: 'Blog',
+		href: '/?section=blog',
+		icon: 'M6 4h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm2 4v2h8V8Zm0 4v2h8v-2Zm0 4v2h5v-2Z'
+	},
+	{
+		id: 'contact',
+		label: 'Contact',
+		href: '/?section=contact',
+		icon: 'M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Zm0 2v.4l8 5.33 8-5.33V7l-8 5.33L4 7Z'
+	}
+] as const;
+---
+
+<header class="top-nav">
+	<p class="brand">Sonu Gupta</p>
+
+	<nav class="section-tabs" aria-label="Primary Navigation" data-tabs={mode === 'buttons' ? '' : undefined}>
+		{mode === 'buttons' && <span class="tab-slider" aria-hidden="true"></span>}
+		{
+			navItems.map((item) =>
+				mode === 'buttons' ? (
+					<button class={`tab ${activeSection === item.id ? 'is-active' : ''}`} data-target={item.id} type="button">
+						<svg viewBox="0 0 24 24" aria-hidden="true"><path d={item.icon}></path></svg>
+						{item.label}
+					</button>
+				) : (
+					<a class={`tab ${activeSection === item.id ? 'is-active' : ''}`} href={item.href} aria-current={activeSection === item.id ? 'page' : undefined}>
+						<svg viewBox="0 0 24 24" aria-hidden="true"><path d={item.icon}></path></svg>
+						{item.label}
+					</a>
+				)
+			)
+		}
+	</nav>
+
+	<div class="social-links">
+		<button class="theme-toggle" type="button" data-theme-toggle aria-label="Toggle dark mode">
+			<svg class="icon-sun" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4a1 1 0 0 1 1 1v1a1 1 0 0 1-2 0V5a1 1 0 0 1 1-1Zm0 13a5 5 0 1 1 5-5 5 5 0 0 1-5 5Zm7-6h1a1 1 0 0 1 0 2h-1a1 1 0 0 1 0-2ZM4 12a1 1 0 0 1 1-1h1a1 1 0 0 1 0 2H5a1 1 0 0 1-1-1Zm11.95 5.54 1.06 1.06a1 1 0 0 1-1.42 1.42l-1.06-1.06a1 1 0 1 1 1.42-1.42Zm-8.96 0a1 1 0 0 1 1.42 0 1 1 0 0 1 0 1.42L7.35 20a1 1 0 1 1-1.42-1.42Zm8.96-11.08a1 1 0 0 1-1.42-1.42l1.06-1.06A1 1 0 1 1 17 5.4Zm-8.96 0L5.93 5.4a1 1 0 1 1 1.42-1.42l1.06 1.06a1 1 0 1 1-1.42 1.42Z"></path></svg>
+			<svg class="icon-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.7 14.7a8 8 0 1 1-10.4-10.4 1 1 0 0 1 1.3 1.2A6 6 0 0 0 18.5 12a6.1 6.1 0 0 0-.2 1.5 1 1 0 0 1 1.4 1.2Z"></path></svg>
+		</button>
+		<a href="https://github.com/sonugpc/" target="_blank" rel="noreferrer" aria-label="GitHub">
+			<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.66.5.5 5.75.5 12.24c0 5.19 3.3 9.58 7.88 11.14.58.11.79-.26.79-.57l-.02-2.2c-3.2.72-3.88-1.4-3.88-1.4-.52-1.37-1.29-1.73-1.29-1.73-1.06-.74.08-.73.08-.73 1.17.09 1.79 1.23 1.79 1.23 1.04 1.85 2.74 1.31 3.4 1 .1-.77.41-1.31.74-1.61-2.56-.3-5.25-1.31-5.25-5.85 0-1.29.45-2.35 1.18-3.18-.12-.3-.51-1.53.11-3.2 0 0 .97-.32 3.17 1.21a10.7 10.7 0 0 1 5.77 0c2.2-1.53 3.17-1.21 3.17-1.21.62 1.67.23 2.9.11 3.2.74.83 1.18 1.89 1.18 3.18 0 4.55-2.7 5.55-5.28 5.84.42.37.79 1.1.79 2.22l-.01 3.29c0 .31.21.69.8.57a11.78 11.78 0 0 0 7.87-11.14C23.5 5.75 18.34.5 12 .5Z"></path></svg>
+		</a>
+		<a href="https://www.linkedin.com/" target="_blank" rel="noreferrer" aria-label="LinkedIn">
+			<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4.98 3.5C4.98 4.88 3.86 6 2.5 6A2.5 2.5 0 0 1 0 3.5 2.5 2.5 0 0 1 2.5 1 2.5 2.5 0 0 1 4.98 3.5ZM.22 8.24h4.56V24H.22V8.24Zm7.15 0h4.37v2.15h.06c.61-1.16 2.1-2.38 4.32-2.38 4.62 0 5.47 3.09 5.47 7.1V24h-4.56v-7.89c0-1.88-.03-4.3-2.57-4.3-2.58 0-2.98 2.03-2.98 4.16V24H7.37V8.24Z"></path></svg>
+		</a>
+	</div>
+</header>
+
+<style>
+	.top-nav {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 1rem;
+		padding: 0.25rem 0;
+	}
+
+	.brand {
+		margin: 0;
+		font-size: 2rem;
+		font-weight: 700;
+		color: var(--text-1);
+	}
+
+	.section-tabs {
+		position: relative;
+		display: inline-flex;
+		padding: 0.2rem;
+		border-radius: 999px;
+		background: var(--tab-bg, var(--surface-2));
+		border: 1px solid var(--border-1);
+		isolation: isolate;
+	}
+
+	.tab-slider {
+		position: absolute;
+		left: 0.2rem;
+		top: 0.2rem;
+		height: calc(100% - 0.4rem);
+		border-radius: 999px;
+		background: var(--surface-1);
+		box-shadow: 0 4px 14px rgba(15, 23, 42, 0.1);
+		transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1), width 280ms cubic-bezier(0.22, 1, 0.36, 1);
+		z-index: 0;
+	}
+
+	.tab {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.45rem;
+		background: transparent;
+		border: none;
+		border-radius: 999px;
+		padding: 0.5rem 1.05rem;
+		font: inherit;
+		font-size: 0.9rem;
+		font-weight: 500;
+		cursor: pointer;
+		color: var(--text-2);
+		text-decoration: none;
+		position: relative;
+		z-index: 1;
+		transition: color 180ms ease;
+	}
+
+	.tab svg {
+		width: 0.95rem;
+		height: 0.95rem;
+		fill: currentColor;
+	}
+
+	.tab.is-active {
+		color: var(--text-1);
+	}
+
+	.section-tabs:not([data-tabs]) .tab.is-active {
+		background: var(--surface-1);
+	}
+
+	.social-links {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+	}
+
+	.theme-toggle,
+	.social-links a {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 2.15rem;
+		height: 2.15rem;
+		border-radius: 999px;
+		border: 1px solid var(--border-1);
+		background: var(--surface-1);
+		color: var(--text-1);
+		transition: transform 180ms ease, color 180ms ease, background-color 180ms ease;
+	}
+
+	.theme-toggle {
+		cursor: pointer;
+	}
+
+	.theme-toggle:hover,
+	.social-links a:hover {
+		transform: translateY(-1px);
+		color: var(--primary, #2563eb);
+	}
+
+	.theme-toggle svg,
+	.social-links svg {
+		width: 1rem;
+		height: 1rem;
+		fill: currentColor;
+	}
+
+	.icon-moon,
+	:global(html.dark) .icon-sun,
+	:global(body.dark) .icon-sun {
+		display: none;
+	}
+
+	:global(html.dark) .icon-moon,
+	:global(body.dark) .icon-moon {
+		display: block;
+	}
+
+	@media (max-width: 1024px) {
+		.top-nav {
+			flex-wrap: wrap;
+			justify-content: center;
+		}
+	}
+
+	@media (max-width: 720px) {
+		.brand {
+			font-size: 1.4rem;
+		}
+
+		.section-tabs {
+			width: 100%;
+			justify-content: center;
+		}
+	}
+</style>
